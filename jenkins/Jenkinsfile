@@ -1,31 +1,57 @@
 pipeline {
-  agent any
-  stages {
-    stage('Checkout') {
-      steps { checkout scm }
+    agent any
+
+    environment {
+        IMAGE_NAME = "health-api:local"
     }
-    stage('Build') {
-      steps {
-        sh 'docker build -t health-api:local ./app'
-      }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build') {
+            steps {
+                bat 'docker build -t %IMAGE_NAME% ./app'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                bat '''
+                docker run --rm ^
+                -v "%WORKSPACE%:/app" ^
+                %IMAGE_NAME% ^
+                python -m pytest --junitxml=/app/pytest.xml -q
+                '''
+            }
+            post {
+                always {
+                    junit 'pytest.xml'
+                }
+            }
+        }
+
+        stage('Security Basic Check') {
+            steps {
+                bat 'echo "Placeholder: dependency validation step"'
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                bat 'docker compose down'
+                bat 'docker compose up -d --build'
+            }
+        }
     }
-    stage('Test') {
-      steps {
-        sh 'docker run --rm health-api:local python -m pytest -q'
-      }
-      post {
-        always { junit 'pytest.xml' }
-      }
+
+    post {
+        always {
+            cleanWs()
+        }
     }
-    stage('Security basics') {
-      steps {
-        sh 'echo "Placeholder: validate dependencies (offline)"'
-      }
-    }
-    stage('Deploy') {
-      steps {
-        sh 'docker compose up -d app'
-      }
-    }
-  }
 }
